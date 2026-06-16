@@ -9,6 +9,7 @@ AgentLoop 退化为纯执行引擎，通过 Agent 获取所需的所有依赖。
 from __future__ import annotations
 
 import uuid
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -17,6 +18,9 @@ import yaml
 
 from ..llm.base import Message
 from .message_utils import trim as msg_trim, clean as msg_clean
+from .compressor import ContextCompressor, estimate_messages_tokens
+
+logger = logging.getLogger("dotclaw.agent")
 
 if TYPE_CHECKING:
     from ..llm.proxy import LLMProxy
@@ -454,7 +458,7 @@ class Agent:
             journal=journal,
         )
 
-    def _build_messages(
+    async def _build_messages(
         self, user_message: str, context: "AgentContextType"
     ) -> list[Message]:
         """
@@ -493,7 +497,28 @@ class Agent:
 
         messages.append(Message(role="user", content=user_message))
 
-        messages = msg_trim(messages, context.max_context_tokens)
+        if estimate_messages_tokens(messages) > context.max_context_tokens:
+            try:
+                compressor = ContextCompressor(self._llm)
+                result = await compressor.compress(
+                    messages=messages,
+                    max_tokens=context.max_context_tokens,
+                    keep_recent=self._config.agent.keep_recent_messages,
+                    existing_summary=self._session.summary if self._session and self._session.summary else "",
+                    summary_message_count=self._session.summary_message_count if self._session else 0,
+                    model=context.model,
+                    purpose=context.purpose,
+                )
+                messages = result.messages
+                if self._session and result.compressed:
+                    self._session.summary = result.summary
+                    self._session.summary_message_count = result.summary_message_count
+            except Exception as e:
+                logger.warning("上下文压缩失败，回退到硬裁剪: %s", e)
+                messages = msg_trim(messages, context.max_context_tokens)
+        else:
+            messages = msg_trim(messages, context.max_context_tokens)
+
         messages = msg_clean(messages)
 
         return messages
@@ -554,7 +579,7 @@ class Agent:
         )
 
     async def _execute_single_tool(
-        self, tc, journal: "Journal"
+        self, tc, journal: "Journal", context: "AgentContextType"
     ) -> Message:
         """
         执行单个工具调用，返回 tool 角色 Message。
@@ -594,6 +619,7 @@ class Agent:
             arguments=args,
             channel=self._channel,
             journal=journal,
+            workspace=context.workspace,
         )
 
         if self._channel:

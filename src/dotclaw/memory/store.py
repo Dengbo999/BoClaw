@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import aiofiles
+
+SESSION_ID_PATTERN = re.compile(r"^[a-f0-9]{8}$")
 
 
 def _resolve_data_dir(relative_path: str | Path) -> Path:
@@ -41,6 +44,7 @@ class Session:
     messages: list[SessionMessage] = field(default_factory=list)
     model: str = "qwen-plus"
     summary: str | None = None
+    summary_message_count: int = 0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -56,6 +60,7 @@ class SessionManager:
     def __init__(self, data_dir: str | Path):
         self._data_dir = _resolve_data_dir(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
+        self._data_dir = self._data_dir.resolve()
 
     @staticmethod
     def _dict_to_session(raw: dict) -> Session:
@@ -69,8 +74,20 @@ class SessionManager:
         raw["messages"] = messages
         return Session(**raw)
 
+    @staticmethod
+    def _validate_session_id(session_id: str) -> None:
+        """会话 ID 只允许系统生成的 8 位十六进制，防止路径穿越。"""
+        if not SESSION_ID_PATTERN.fullmatch(session_id):
+            raise ValueError(f"非法会话 ID: {session_id}")
+
     def _session_path(self, session_id: str) -> Path:
-        return self._data_dir / f"{session_id}.json"
+        self._validate_session_id(session_id)
+        path = (self._data_dir / f"{session_id}.json").resolve(strict=False)
+        try:
+            path.relative_to(self._data_dir)
+        except ValueError as e:
+            raise ValueError(f"会话路径超出目录: {session_id}") from e
+        return path
 
     async def create(self, title: str = "新对话", model: str = "qwen-plus") -> Session:
         """创建新会话"""
@@ -87,7 +104,10 @@ class SessionManager:
 
     async def load(self, session_id: str) -> Session | None:
         """加载会话"""
-        path = self._session_path(session_id)
+        try:
+            path = self._session_path(session_id)
+        except ValueError:
+            return None
         if not path.exists():
             return None
         try:
@@ -99,6 +119,7 @@ class SessionManager:
 
     async def save(self, session: Session) -> None:
         """保存会话"""
+        self._validate_session_id(session.id)
         session.updated_at = datetime.now().isoformat()
         path = self._session_path(session.id)
         async with aiofiles.open(path, "w", encoding="utf-8") as f:
@@ -108,6 +129,8 @@ class SessionManager:
         """列出所有会话（按更新时间倒序）"""
         sessions = []
         for path in self._data_dir.glob("*.json"):
+            if not SESSION_ID_PATTERN.fullmatch(path.stem):
+                continue
             try:
                 async with aiofiles.open(path, encoding="utf-8") as f:
                     data = await f.read()
@@ -119,7 +142,10 @@ class SessionManager:
 
     async def delete(self, session_id: str) -> bool:
         """删除会话"""
-        path = self._session_path(session_id)
+        try:
+            path = self._session_path(session_id)
+        except ValueError:
+            return False
         if path.exists():
             path.unlink()
             return True

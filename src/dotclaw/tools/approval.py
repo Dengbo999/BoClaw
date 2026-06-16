@@ -3,10 +3,38 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..channel.base import Channel
+
+
+_SENSITIVE_KEYWORDS = ("api_key", "apikey", "token", "password", "secret", "authorization")
+
+
+def _default_audit_log_path() -> Path:
+    """默认写入项目运行数据目录，避免把审批记录混进源码。"""
+    import dotclaw
+    project_root = Path(dotclaw.__file__).parent.parent.parent
+    return project_root / "data" / "security" / "approvals.jsonl"
+
+
+def _redact(value: Any) -> Any:
+    """递归脱敏审批参数，防止日志记录密钥类字段。"""
+    if isinstance(value, dict):
+        redacted = {}
+        for key, item in value.items():
+            key_text = str(key).lower()
+            if any(word in key_text for word in _SENSITIVE_KEYWORDS):
+                redacted[key] = "***REDACTED***"
+            else:
+                redacted[key] = _redact(item)
+        return redacted
+    if isinstance(value, list):
+        return [_redact(item) for item in value]
+    return value
 
 
 class ApprovalManager:
@@ -22,9 +50,16 @@ class ApprovalManager:
     - 新增 _approval_commands 集合，从 config.yaml 加载
     """
 
-    def __init__(self, approval_commands: list[str] | None = None):
+    def __init__(
+        self,
+        approval_commands: list[str] | None = None,
+        audit_log_path: str | Path | None = None,
+    ):
         self._enabled = True
         self._approval_commands = set(approval_commands or [])
+        self._audit_log_path = (
+            Path(audit_log_path) if audit_log_path is not None else _default_audit_log_path()
+        )
 
     def set_enabled(self, enabled: bool):
         self._enabled = enabled
@@ -48,13 +83,16 @@ class ApprovalManager:
         3. 否则放行
         """
         if not self._enabled:
+            self._write_audit(tool_name, arguments, decision="auto_approved_disabled")
             return True
 
         if tool_name not in self._approval_commands:
+            self._write_audit(tool_name, arguments, decision="auto_approved_not_configured")
             return True
 
         if channel is None:
             # 无 channel 时默认放行（子 Agent 场景）
+            self._write_audit(tool_name, arguments, decision="auto_approved_no_channel")
             return True
 
         # 通过 channel 向用户请求确认
@@ -64,4 +102,25 @@ class ApprovalManager:
             f"参数：{args_str}\n"
             f"确认执行？(y/n): "
         )
-        return confirm.strip().lower() in ("y", "yes")
+        approved = confirm.strip().lower() in ("y", "yes")
+        self._write_audit(
+            tool_name,
+            arguments,
+            decision="approved" if approved else "denied",
+        )
+        return approved
+
+    def _write_audit(self, tool_name: str, arguments: dict, decision: str) -> None:
+        """记录危险工具审批结果；日志失败不能阻塞正常工具流程。"""
+        try:
+            self._audit_log_path.parent.mkdir(parents=True, exist_ok=True)
+            event = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "tool_name": tool_name,
+                "decision": decision,
+                "arguments": _redact(arguments),
+            }
+            with open(self._audit_log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(event, ensure_ascii=False) + "\n")
+        except Exception:
+            pass

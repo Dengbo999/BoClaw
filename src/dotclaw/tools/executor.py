@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Any
 
 from .base import ToolExecutionContext, ToolResult
@@ -67,6 +68,7 @@ class ToolExecutor:
         arguments: dict[str, Any],
         channel: Any | None = None,
         journal: Journal | None = None,
+        workspace: str | Path | None = None,
     ) -> ToolResult:
         """执行工具：查找 Handler → 审批检查 → 超时控制 → 返回 ToolResult"""
         # ── Journal：工具执行开始 ──
@@ -109,7 +111,10 @@ class ToolExecutor:
 
         # 超时控制 + 执行
         timeout = definition.timeout
-        ctx = ToolExecutionContext(timeout=timeout)
+        ctx = ToolExecutionContext(
+            timeout=timeout,
+            workspace=Path(workspace) if workspace is not None else None,
+        )
 
         try:
             result = await asyncio.wait_for(

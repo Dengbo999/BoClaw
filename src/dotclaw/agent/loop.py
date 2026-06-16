@@ -60,7 +60,7 @@ class AgentLoop:
         iterations = 0
 
         try:
-            messages = self.agent._build_messages(user_message, context)
+            messages = await self.agent._build_messages(user_message, context)
 
             # ── Journal：prompt 构建完成 ──
             est_tokens = sum(len(m.content or "") for m in messages)
@@ -119,7 +119,7 @@ class AgentLoop:
 
                 # ── 并行执行工具调用 ──
                 tool_messages = await asyncio.gather(*[
-                    self.agent._execute_single_tool(tc, journal)
+                    self.agent._execute_single_tool(tc, journal, context)
                     for tc in llm_resp.tool_calls
                 ])
                 messages.extend(tool_messages)

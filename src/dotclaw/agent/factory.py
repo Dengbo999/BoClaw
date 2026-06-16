@@ -143,7 +143,10 @@ def _build_tools(config, skill_registry):
     registry = ToolRegistry()
 
     if config.tools.builtin_enabled:
-        register_all(registry)
+        register_all(
+            registry,
+            include_web_search=config.tools.web_search_enabled,
+        )
 
     for tool_name in config.tools.disabled_tools:
         registry.unregister(tool_name)

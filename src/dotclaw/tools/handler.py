@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import inspect
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Awaitable
 
@@ -65,9 +66,17 @@ class BuiltinToolHandler(ToolHandler):
         arguments: dict[str, Any],
         context: ToolExecutionContext | None = None,
     ) -> ToolResult:
-        _ = context  # Phase 5: context 暂未在 builtin handler 中使用
         try:
-            result = await self._handler_fn(**arguments)
+            kwargs = dict(arguments)
+            signature = inspect.signature(self._handler_fn)
+            params = signature.parameters
+            accepts_context = (
+                "context" in params
+                or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+            )
+            if accepts_context:
+                kwargs["context"] = context
+            result = await self._handler_fn(**kwargs)
             return ToolResult(output=str(result))
         except Exception as e:
             logger.exception(f"工具 {self._definition.name} 执行出错")

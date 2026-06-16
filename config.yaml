@@ -7,12 +7,12 @@ llm:
   clients:
     qwen3.7-max:
       provider: qwen
-      api_key: ${QWEN_API_KEY}
+      api_key: sk-a16aed1d47084c1ba59c62a95e727216
       base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
       model: qwen3.7-max
     qwen-turbo:
       provider: qwen
-      api_key: ${QWEN_API_KEY}
+      api_key: sk-a16aed1d47084c1ba59c62a95e727216
       base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
       model: qwen-turbo
   fallbacks:
@@ -48,7 +48,7 @@ tools:
   exec_timeout: 60
 
   web_search:
-    enabled: false
+    enabled: true
 
   # Phase 6 新增：MCP 全局配置
   mcp_global:

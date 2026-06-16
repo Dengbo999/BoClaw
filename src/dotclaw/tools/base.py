@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("dotclaw.tools")
@@ -44,3 +45,4 @@ class ToolResult:
 class ToolExecutionContext:
     """工具执行时的运行时上下文（最小集 — Phase 5）"""
     timeout: float = 60.0              # 执行超时，来自 ToolDefinition.timeout
+    workspace: Path | None = None      # 工具允许访问的工作区根目录
