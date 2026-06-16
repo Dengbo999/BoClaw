@@ -1,0 +1,95 @@
+# ============================================
+# dotClaw 配置文件（Phase 6 升级）
+# ============================================
+
+llm:
+  default_model: qwen3.7-max
+  clients:
+    qwen3.7-max:
+      provider: qwen
+      api_key: ${QWEN_API_KEY}
+      base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      model: qwen3.7-max
+    qwen-turbo:
+      provider: qwen
+      api_key: ${QWEN_API_KEY}
+      base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      model: qwen-turbo
+  fallbacks:
+    - qwen-turbo
+  retry:
+    max_retries: 3
+    base_delay: 1.0
+  stream: true
+
+agent:
+  system_prompt: |
+    你是一个有用、诚实、友好、说话干脆的 AI 助手。
+    你可以调用工具来帮助用户完成任务。
+    当需要执行危险操作时会请求确认。
+    专注于当前会话，历史会话信息仅用作本次会话的参考，严禁在本次会话中提到与本次会话无关的内容
+  max_context_tokens: 8000
+  keep_recent_messages: 10
+
+tools:
+  # source 级启停（Phase 5 新增）
+  builtin_enabled: true
+  mcp_enabled: true
+  skill_enabled: true
+
+  # 危险工具审批命令列表（Phase 5 新增）
+  approval_commands:
+    - exec
+    - python
+
+  # 单工具禁用列表（向后兼容旧 config.exec.enabled: false）
+  disabled_tools: []
+
+  exec_timeout: 60
+
+  web_search:
+    enabled: false
+
+  # Phase 6 新增：MCP 全局配置
+  mcp_global:
+    startup_timeout: 4.0
+    tool_timeout: 60.0
+    restart_on_crash: true
+    max_restart_attempts: 3
+
+  # Phase 6 新增：MCP servers 列表
+  mcp_servers: []
+  # 示例:
+  #   - name: filesystem
+  #     transport: stdio
+  #     command: npx
+  #     args: ["-y", "@anthropic/mcp-server-filesystem", "/tmp"]
+  #   - name: remote-api
+  #     transport: streamable_http
+  #     url: http://localhost:8080/mcp
+  #     headers:
+  #       Authorization: "Bearer ${MCP_API_KEY}"
+  #     tool_timeout: 120.0
+
+skills:
+  directory: ./skills
+
+memory:
+  long_term_file: ./data/memory/MEMORY.md
+
+session:
+  directory: ./data/sessions
+
+scheduler:
+  enabled: true
+
+debug:
+  level: DEBUG
+  log_file: ./data/dotclaw.log
+
+journal:
+  trace_dir: ./data/traces
+  snapshot_dir: ./data/snapshots
+  console: true
+  trace: true
+  snapshot: true

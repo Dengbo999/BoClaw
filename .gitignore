@@ -1,0 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env
+.venv
+venv/
+env/
+.workbuddy
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Coverage
+.coverage
+.coverage.*
+
+# dotClaw runtime data
+data/
+src/dotclaw/data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Distribution
+dist/
+build/
+*.egg-info/
+/.learnings/ERRORS.md
+/.learnings/FEATURE_REQUESTS.md
+/.learnings/LEARNINGS.md
+/.codebuddy/settings.local.json
+/skills/
