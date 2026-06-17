@@ -614,7 +614,12 @@ def load_config(path: str | Path = "config.yaml") -> Config:
 
     支持 ${ENV_VAR} 环境变量展开。
     默认从项目根目录（config.yaml 所在目录）加载。
+
+    读取 YAML 前先加载 .env，使 ${ENV_VAR} 占位符可解析到 .env 中的值。
     """
+    from dotclaw.common.utils import load_dotenv
+    load_dotenv()
+
     if Path(path).is_absolute():
         config_path = Path(path)
     else:
