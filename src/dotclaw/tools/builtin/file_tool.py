@@ -2,51 +2,19 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import aiofiles
 
 from dotclaw.tools.base import ToolExecutionContext
 from dotclaw.tools.handler import BuiltinToolHandler
+from dotclaw.tools.security.path_sandbox import resolve_workspace_path
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-
-
-def _default_workspace() -> Path:
-    """未显式传入上下文时，默认限制在 dotClaw 项目根目录。"""
-    import dotclaw
-    return Path(dotclaw.__file__).parent.parent.parent.resolve()
-
-
-def _workspace_from_context(context: ToolExecutionContext | None) -> Path:
-    """统一解析工具工作区，避免各工具自行决定访问边界。"""
-    if context and context.workspace:
-        return Path(context.workspace).expanduser().resolve()
-    return _default_workspace()
-
-
-def _resolve_workspace_path(
-    path: str,
-    context: ToolExecutionContext | None,
-) -> tuple[Path, Path]:
-    """将用户路径解析到 workspace 内；越界路径直接拒绝。"""
-    workspace = _workspace_from_context(context)
-    raw_path = Path(path).expanduser()
-    candidate = raw_path if raw_path.is_absolute() else workspace / raw_path
-    resolved = candidate.resolve(strict=False)
-
-    try:
-        resolved.relative_to(workspace)
-    except ValueError as e:
-        raise PermissionError(f"路径超出工作区: {path}") from e
-
-    return resolved, workspace
 
 
 async def read_file(path: str, context: ToolExecutionContext | None = None) -> str:
     """读取文件全部内容"""
     try:
-        file_path, workspace = _resolve_workspace_path(path, context)
+        file_path, workspace = resolve_workspace_path(path, context)
         if not file_path.exists():
             return f"错误：文件不存在 '{path}'"
         if not file_path.is_file():
@@ -68,7 +36,7 @@ async def write_file(
 ) -> str:
     """写入文件"""
     try:
-        file_path, workspace = _resolve_workspace_path(path, context)
+        file_path, workspace = resolve_workspace_path(path, context)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path = file_path.resolve(strict=False)
         file_path.relative_to(workspace)
@@ -89,7 +57,7 @@ async def list_dir(
 ) -> str:
     """列出目录"""
     try:
-        dir_path, _ = _resolve_workspace_path(path, context)
+        dir_path, _ = resolve_workspace_path(path, context)
         if not dir_path.exists():
             return f"错误：目录不存在 '{path}'"
         if not dir_path.is_dir():

@@ -89,7 +89,8 @@ class ToolExecutor:
             return result
 
         definition = handler.definition()
-        # todo 将安全模块独立出去，包括workspace限制、鉴权、工具审批、
+        # 安全逻辑已收拢至 dotclaw.tools.security(path_sandbox / command_rules / approval)。
+        # 审批在此触发；workspace 限制与命令护栏在各 builtin 工具内经 security 模块执行。
         # 审批检查
         if definition.needs_approval:
             approved = await self._approval.check(
