@@ -23,6 +23,13 @@ env/
 data/
 src/dotclaw/data/
 
+# 本地配置（含密钥）——不提交，照着 *.example.yaml 填
+config.yaml
+model_router_config.yaml
+# 但保留示例模板
+!config.example.yaml
+!model_router_config.example.yaml
+
 # OS
 .DS_Store
 Thumbs.db

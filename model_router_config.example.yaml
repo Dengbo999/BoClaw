@@ -16,7 +16,7 @@ defaults:
 # Level 2: 供应商配置
 providers:
   qwen:
-    api_key: sk-a16aed1d47084c1ba59c62a95e727216
+    api_key: ${QWEN_API_KEY}
     base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 #    base_url: https://invalid-host-99999.example.com/v1
     rate_limit:
