@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🐾 dotClaw
+# 🐾 BoClaw
 
 **轻量级开源 Agent Harness 项目**
 
@@ -14,7 +14,7 @@ ReAct推理循环 · 多模型路由降级 · 三级记忆 · 可插拔工具与
 
 ---
 
-> **dotClaw** — 一个从零搭建的 Agent Harness 项目。**实现ReAct循环、工具调度、记忆管理和模型路由**的完整链路。
+> **BoClaw** — 一个从零搭建的 Agent Harness 项目。**实现ReAct循环、工具调度、记忆管理和模型路由**的完整链路。
 > 
 
 ---
