@@ -248,6 +248,30 @@ def _build_mcp(config, tool_registry):
     return _init()
 
 
+def _build_assistant(project_root: Path):
+    """构建个人助手数据层：TodoStore + ReminderManager。
+
+    返回 (todo_store, reminder_mgr)。数据落 data/assistant/ 下。
+    """
+    from dotclaw.assistant.todo import TodoStore
+    from dotclaw.scheduler.reminder import ReminderManager
+
+    data_dir = project_root / "data" / "assistant"
+    todo_store = TodoStore(data_dir / "todos.json")
+    reminder_mgr = ReminderManager(data_dir / "reminders.json")
+    return todo_store, reminder_mgr
+
+
+def _build_research(project_root: Path, llm_proxy):
+    """构建深度研究管理器和后台 runner。"""
+    from dotclaw.research import ResearchManager, ResearchRunner, ResearchStorage
+
+    storage = ResearchStorage(project_root / "data" / "research")
+    manager = ResearchManager(storage=storage, llm=llm_proxy)
+    runner = ResearchRunner(manager=manager)
+    return manager, runner
+
+
 def _build_prompt_builder():
     """构建 PromptBuilder。"""
     from dotclaw.agent.prompt.builder import PromptBuilder
@@ -312,6 +336,25 @@ async def build_agent(
         "MCP", _build_mcp(config, tool_registry)
     ) or (None, None)
 
+    # ── 个人助手工具（Todo / 提醒）──
+    todo_store, reminder_mgr = _init_sync(
+        "个人助手", lambda: _build_assistant(project_root)
+    ) or (None, None)
+    if tool_executor and (todo_store or reminder_mgr):
+        from dotclaw.tools.builtin import register_assistant_tools
+        register_assistant_tools(tool_executor.registry, todo_store, reminder_mgr)
+
+    # ── 深度研究工具 ──
+    research_mgr = _init_sync(
+        "深度研究", lambda: _build_research(project_root, llm_proxy)
+    )
+    research_runner = None
+    if isinstance(research_mgr, tuple):
+        research_mgr, research_runner = research_mgr
+    if tool_executor and research_mgr:
+        from dotclaw.tools.builtin import register_research_tools
+        register_research_tools(tool_executor.registry, research_mgr, research_runner)
+
     # ── Agent 配置 ──
     agent_config = load_agent_config(agent_id=agent_id)
 
@@ -330,6 +373,7 @@ async def build_agent(
         mcp_provider=mcp_provider,
         memory_dream=memory_dream,
         mcp_task=mcp_task,
+        research_runner=research_runner,
     )
 
     # ── 恢复上次 session ──
@@ -342,6 +386,11 @@ async def build_agent(
                 break
     if agent.session is None:
         agent.session = sessions[0] if sessions else await agent.new_session("主对话")
+
+    # ── 提醒：注入 channel + 恢复未触发提醒 ──
+    if reminder_mgr:
+        reminder_mgr.set_channel(channel)
+        await _init_async("提醒恢复", reminder_mgr.restore())
 
     # ── 保存状态 ──
     _save_state(project_root, {
